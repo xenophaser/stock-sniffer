@@ -1,24 +1,24 @@
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
-  const HEADERS = { 'User-Agent': 'StockSniffer xenolinux@gmail.com' }
   const SAMPLE = [
-    { company: 'Apple Inc.', ticker: 'AAPL', insider: 'Tim Cook', role: 'CEO', transactionCode: 'S', signal: 'sell', shares: 50000, price: 211.45, totalValue: 10572500, date: new Date().toISOString().split('T')[0] },
-    { company: 'NVIDIA Corp.', ticker: 'NVDA', insider: 'Jensen Huang', role: 'CEO', transactionCode: 'S', signal: 'sell', shares: 120000, price: 134.22, totalValue: 16106400, date: new Date().toISOString().split('T')[0] },
-    { company: 'Palantir Technologies', ticker: 'PLTR', insider: 'Alexander Karp', role: 'CEO', transactionCode: 'P', signal: 'buy', shares: 250000, price: 28.43, totalValue: 7107500, date: new Date().toISOString().split('T')[0] },
-    { company: 'Super Micro Computer', ticker: 'SMCI', insider: 'Charles Liang', role: 'CEO', transactionCode: 'P', signal: 'buy', shares: 100000, price: 42.18, totalValue: 4218000, date: new Date().toISOString().split('T')[0] },
-    { company: 'Rocket Companies', ticker: 'RKT', insider: 'Jay Farner', role: 'Director', transactionCode: 'P', signal: 'buy', shares: 500000, price: 12.34, totalValue: 6170000, date: new Date().toISOString().split('T')[0] },
-    { company: 'Meta Platforms', ticker: 'META', insider: 'Mark Zuckerberg', role: 'CEO', transactionCode: 'S', signal: 'sell', shares: 75000, price: 632.10, totalValue: 47407500, date: new Date().toISOString().split('T')[0] },
+    { company: 'Apple Inc.', ticker: 'AAPL', insider: 'Tim Cook', role: 'CEO', transactionCode: 'S', signal: 'sell', shares: 50000, price: 211.45, totalValue: 10572500, date: '2026-06-06' },
+    { company: 'NVIDIA Corp.', ticker: 'NVDA', insider: 'Jensen Huang', role: 'CEO', transactionCode: 'S', signal: 'sell', shares: 120000, price: 134.22, totalValue: 16106400, date: '2026-06-06' },
+    { company: 'Palantir Technologies', ticker: 'PLTR', insider: 'Alexander Karp', role: 'CEO', transactionCode: 'P', signal: 'buy', shares: 250000, price: 28.43, totalValue: 7107500, date: '2026-06-05' },
+    { company: 'Super Micro Computer', ticker: 'SMCI', insider: 'Charles Liang', role: 'CEO', transactionCode: 'P', signal: 'buy', shares: 100000, price: 42.18, totalValue: 4218000, date: '2026-06-05' },
+    { company: 'Rocket Companies', ticker: 'RKT', insider: 'Jay Farner', role: 'Director', transactionCode: 'P', signal: 'buy', shares: 500000, price: 12.34, totalValue: 6170000, date: '2026-06-04' },
+    { company: 'Meta Platforms', ticker: 'META', insider: 'Mark Zuckerberg', role: 'CEO', transactionCode: 'S', signal: 'sell', shares: 75000, price: 632.10, totalValue: 47407500, date: '2026-06-04' },
   ]
 
   try {
     const today = new Date().toISOString().split('T')[0]
-    const past = new Date(Date.now() - 3 * 86400000).toISOString().split('T')[0]
+    const past = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0]
+    const HEADERS = { 'User-Agent': 'StockSniffer xenolinux@gmail.com' }
     const searchUrl = `https://efts.sec.gov/LATEST/search-index?forms=4&dateRange=custom&startdt=${past}&enddt=${today}`
     const searchRes = await fetch(searchUrl, { headers: HEADERS })
-    if (!searchRes.ok) throw new Error(`Search failed: ${searchRes.status}`)
+    if (!searchRes.ok) return res.status(200).json({ fallback: true, transactions: SAMPLE, total: SAMPLE.length })
     const searchJson = await searchRes.json()
     const hits = searchJson?.hits?.hits || []
-    if (hits.length === 0) throw new Error('No hits')
+    if (hits.length === 0) return res.status(200).json({ fallback: true, transactions: SAMPLE, total: SAMPLE.length })
 
     const transactions = []
     const limit = Math.min(hits.length, 20)
@@ -48,7 +48,7 @@ export default async function handler(req, res) {
     }
 
     const buySell = transactions.filter(t => t.signal === 'buy' || t.signal === 'sell')
-    if (buySell.length === 0) throw new Error('No buy/sell found')
+    if (buySell.length === 0) return res.status(200).json({ fallback: true, transactions: SAMPLE, total: hits.length })
     res.status(200).json({ transactions: buySell, total: hits.length })
 
   } catch (e) {
