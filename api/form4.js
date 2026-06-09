@@ -2,7 +2,7 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   try {
     // Financial Modeling Prep - free tier, clean JSON, no scraping
-    const url = 'https://financialmodelingprep.com/api/v4/insider-trading?transactionType=P-Purchase,S-Sale&limit=20&apikey=demo'
+    const url = 'https://financialmodelingprep.com/api/v4/insider-trading?transactionType=P-Purchase,S-Sale&limit=20&apikey=BWraZNN3Hrxjv390CZzEpkspVv0C4wfu'
     const r = await fetch(url)
     if (!r.ok) throw new Error(`FMP: ${r.status}`)
     const json = await r.json()
