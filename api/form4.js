@@ -9,29 +9,49 @@ export default async function handler(req, res) {
     { company: 'Meta Platforms', ticker: 'META', insider: 'Mark Zuckerberg', role: 'CEO', transactionCode: 'S', signal: 'sell', shares: 75000, price: 632.10, totalValue: 47407500, date: '2026-06-04' },
   ]
 
+  const WATCHLIST = ['AAPL', 'NVDA', 'META', 'MSFT', 'TSLA', 'AMZN', 'GOOGL', 'PLTR', 'SMCI', 'JPM']
+  const API_KEY = 'ysEDLZnfWfumXeBVa91YMtV2UWtY5e4T6IJyvnZV'
+
   try {
-    const r = await fetch('https://api.api-ninjas.com/v1/insidertrading?limit=20', {
-      headers: { 'X-Api-Key': 'ysEDLZnfWfumXeBVa91YMtV2UWtY5e4T6IJyvnZV' }
-    })
-    if (!r.ok) throw new Error(`API Ninjas: ${r.status}`)
-    const json = await r.json()
-    if (!Array.isArray(json) || json.length === 0) throw new Error('No data')
+    const transactions = []
 
-    const transactions = json.map(t => ({
-      company: t.company_name || '—',
-      ticker: t.ticker || '—',
-      insider: t.name || '—',
-      role: t.position || '—',
-      transactionCode: t.transaction_code || '—',
-      signal: t.transaction_type === 'Purchase' ? 'buy' : t.transaction_type === 'Sale' ? 'sell' : 'other',
-      shares: t.shares || null,
-      price: t.price || null,
-      totalValue: t.total_value || (t.shares && t.price ? Math.round(t.shares * t.price) : null),
-      date: t.filed_date || '—',
-    })).filter(t => t.signal === 'buy' || t.signal === 'sell')
+    await Promise.all(WATCHLIST.map(async ticker => {
+      try {
+        const r = await fetch(`https://api.api-ninjas.com/v1/insidertrading?ticker=${ticker}&transaction_code=P&limit=3`, {
+          headers: { 'X-Api-Key': API_KEY }
+        })
+        if (!r.ok) return
+        const buys = await r.json()
 
-    if (transactions.length === 0) throw new Error('No buy/sell')
-    res.status(200).json({ transactions, total: transactions.length })
+        const r2 = await fetch(`https://api.api-ninjas.com/v1/insidertrading?ticker=${ticker}&transaction_code=S&limit=3`, {
+          headers: { 'X-Api-Key': API_KEY }
+        })
+        const sells = r2.ok ? await r2.json() : []
+
+        ;[...buys, ...sells].forEach(t => {
+          transactions.push({
+            company: t.company_name || ticker,
+            ticker: t.ticker || ticker,
+            insider: t.name || '—',
+            role: t.position || '—',
+            transactionCode: t.transaction_code || '—',
+            signal: t.transaction_code === 'P' ? 'buy' : t.transaction_code === 'S' ? 'sell' : 'other',
+            shares: t.shares || null,
+            price: t.price || null,
+            totalValue: t.total_value || null,
+            date: t.transaction_date || '—',
+          })
+        })
+      } catch { /* skip */ }
+    }))
+
+    const buySell = transactions.filter(t => t.signal === 'buy' || t.signal === 'sell')
+    if (buySell.length === 0) throw new Error('No data')
+
+    // Sort by date descending
+    buySell.sort((a, b) => b.date.localeCompare(a.date))
+    res.status(200).json({ transactions: buySell.slice(0, 20), total: buySell.length })
+
   } catch (e) {
     res.status(200).json({ fallback: true, transactions: SAMPLE, total: SAMPLE.length })
   }
