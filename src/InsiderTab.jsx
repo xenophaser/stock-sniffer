@@ -1,11 +1,11 @@
 export default function InsiderTab({ data, loading, error }) {
-  if (loading) return <div className="loading-msg">Fetching SEC Form 4 filings & parsing transactions...</div>
+  if (loading) return <div className="loading-msg">Fetching SEC Form 4 filings...</div>
   if (error) return <div className="error-msg">Error: {error}</div>
 
   const transactions = data?.transactions || []
   const isFallback = data?.fallback
 
-  if (transactions.length === 0) return <div className="loading-msg">No buy/sell transactions found in recent filings.</div>
+  if (transactions.length === 0) return <div className="loading-msg">No buy/sell transactions found.</div>
 
   const buys = transactions.filter(t => t.signal === 'buy')
   const sells = transactions.filter(t => t.signal === 'sell')
@@ -17,7 +17,7 @@ export default function InsiderTab({ data, loading, error }) {
   return (
     <div>
       <div className="info-bar">
-        <span>SEC Form 4 — Open market buys (P) and sells (S) only · Last 3 days</span>
+        <span>SEC Form 4 — Open market buys (P) and sells (S) · Last 3 days</span>
         <div style={{ display: 'flex', gap: 8 }}>
           <span style={{ background: 'rgba(34,197,94,0.15)', color: '#4ade80', fontSize: 11, fontWeight: 500, padding: '2px 8px', borderRadius: 99 }}>🐂 {buys.length} buys</span>
           <span style={{ background: 'rgba(239,68,68,0.15)', color: '#f87171', fontSize: 11, fontWeight: 500, padding: '2px 8px', borderRadius: 99 }}>🐻 {sells.length} sells</span>
@@ -26,22 +26,14 @@ export default function InsiderTab({ data, loading, error }) {
       </div>
       {isFallback && (
         <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(245,158,11,0.1)', color: '#fbbf24', border: '1px solid rgba(245,158,11,0.2)', fontSize: 13, marginBottom: '1rem' }}>
-          ⚠️ Using sample data — SEC EDGAR XML parsing may have timed out. Real data pulls live from EDGAR Form 4 filings.
+          ⚠️ Using sample data — live EDGAR parsing timed out on Vercel.
         </div>
       )}
       <div style={{ overflowX: 'auto' }}>
         <table className="data-table">
           <thead>
             <tr>
-              <th>Signal</th>
-              <th>Ticker</th>
-              <th>Company</th>
-              <th>Insider</th>
-              <th>Role</th>
-              <th>Shares</th>
-              <th>Price</th>
-              <th>Total Value</th>
-              <th>Date</th>
+              <th>Signal</th><th>Ticker</th><th>Company</th><th>Insider</th><th>Role</th><th>Shares</th><th>Price</th><th>Total Value</th><th>Date</th>
             </tr>
           </thead>
           <tbody>
@@ -70,8 +62,8 @@ export default function InsiderTab({ data, loading, error }) {
         </table>
       </div>
       <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: '1rem' }}>
-        P = open market purchase · S = open market sale · Source: SEC EDGAR Form 4 ·{' '}
-        <a href="https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&type=4&dateb=&owner=include&count=40" target="_blank" rel="noreferrer">View on EDGAR →</a>
+        P = open market purchase · S = open market sale · Source: SEC EDGAR ·{' '}
+        <a href="https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&type=4" target="_blank" rel="noreferrer">View on EDGAR →</a>
       </p>
     </div>
   )
