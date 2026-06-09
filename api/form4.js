@@ -10,58 +10,28 @@ export default async function handler(req, res) {
   ]
 
   try {
-    // SEC EDGAR RSS feed - fast, lightweight, no individual XML parsing
-    const r = await fetch('https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=4&dateb=&owner=include&count=20&search_text=&output=atom', {
-      headers: { 'User-Agent': 'StockSniffer xenolinux@gmail.com' }
+    const r = await fetch('https://api.api-ninjas.com/v1/insidertrading?limit=20', {
+      headers: { 'X-Api-Key': 'ysEDLZnfWfumXeBVa91YMtV2UWtY5e4T6IJyvnZV' }
     })
-    if (!r.ok) throw new Error(`RSS: ${r.status}`)
-    const xml = await r.text()
+    if (!r.ok) throw new Error(`API Ninjas: ${r.status}`)
+    const json = await r.json()
+    if (!Array.isArray(json) || json.length === 0) throw new Error('No data')
 
-    // Parse RSS entries
-    const entries = []
-    const entryRegex = /<entry>([\s\S]*?)<\/entry>/g
-    let match
-    while ((match = entryRegex.exec(xml)) !== null) {
-      entries.push(match[1])
-    }
+    const transactions = json.map(t => ({
+      company: t.company_name || '—',
+      ticker: t.ticker || '—',
+      insider: t.name || '—',
+      role: t.position || '—',
+      transactionCode: t.transaction_code || '—',
+      signal: t.transaction_type === 'Purchase' ? 'buy' : t.transaction_type === 'Sale' ? 'sell' : 'other',
+      shares: t.shares || null,
+      price: t.price || null,
+      totalValue: t.total_value || (t.shares && t.price ? Math.round(t.shares * t.price) : null),
+      date: t.filed_date || '—',
+    })).filter(t => t.signal === 'buy' || t.signal === 'sell')
 
-    if (entries.length === 0) throw new Error('No entries')
-
-    const transactions = entries.slice(0, 20).map(entry => {
-      const get = (tag) => entry.match(new RegExp(`<${tag}[^>]*>([^<]*)<\/${tag}>`))?.[1]?.trim() || '—'
-      const title = get('title')
-      const updated = get('updated')?.split('T')[0] || '—'
-
-      // Title format: "4 - COMPANY NAME (TICKER) (insider name)"
-      const tickerMatch = title.match(/\(([A-Z]{1,5})\)/)
-      const ticker = tickerMatch ? tickerMatch[1] : '—'
-      const companyMatch = title.match(/4 - (.+?)\s*\(/)
-      const company = companyMatch ? companyMatch[1].trim() : title
-
-      return {
-        company,
-        ticker,
-        insider: '—',
-        role: '—',
-        transactionCode: '—',
-        signal: 'unknown',
-        shares: null,
-        price: null,
-        totalValue: null,
-        date: updated,
-      }
-    })
-
-    // RSS gives us filing list but not buy/sell — use sample for those fields
-    // but show real tickers and companies
-    const enriched = transactions.slice(0, 6).map((t, i) => ({
-      ...SAMPLE[i % SAMPLE.length],
-      company: t.company !== '—' ? t.company : SAMPLE[i % SAMPLE.length].company,
-      ticker: t.ticker !== '—' ? t.ticker : SAMPLE[i % SAMPLE.length].ticker,
-      date: t.date,
-    }))
-
-    res.status(200).json({ transactions: enriched, total: enriched.length, rss: true })
+    if (transactions.length === 0) throw new Error('No buy/sell')
+    res.status(200).json({ transactions, total: transactions.length })
   } catch (e) {
     res.status(200).json({ fallback: true, transactions: SAMPLE, total: SAMPLE.length })
   }
