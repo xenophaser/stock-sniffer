@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
 import './App.css'
-import InsiderTab from './InsiderTab'
 
 const TABS = ['Insider Trades', 'Short Squeeze', 'Institutional']
 
@@ -30,7 +29,52 @@ function SectionTitle({ children }) {
   return <p className="section-title">{children}</p>
 }
 
+function InsiderTab({ data, loading, error }) {
+  if (loading) return <div className="loading-msg">Fetching SEC Form 4 filings...</div>
+  if (error) return <div className="error-msg">Error: {error}</div>
 
+  const hits = data?.hits?.hits || []
+
+  if (hits.length === 0) return <div className="loading-msg">No recent Form 4 filings found.</div>
+
+  return (
+    <div>
+      <div className="info-bar">
+        <span>Recent insider transactions from SEC EDGAR · Form 4 filings · Last 7 days</span>
+        <Badge color="blue" text={`${hits.length} filings`} />
+      </div>
+      <div className="table-wrap">
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Company</th>
+              <th>Filed</th>
+              <th>Period</th>
+              <th>Signal</th>
+            </tr>
+          </thead>
+          <tbody>
+            {hits.map((h, i) => {
+              const src = h._source || {}
+              const name = src.display_names?.[0] || src.entity_name || 'Unknown'
+              const filed = src.file_date || '—'
+              const period = src.period_of_report || '—'
+              return (
+                <tr key={i}>
+                  <td className="company-cell">{name}</td>
+                  <td className="muted-cell">{filed}</td>
+                  <td className="muted-cell">{period}</td>
+                  <td><Badge color="amber" text="Form 4" /></td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className="footnote">Source: SEC EDGAR · <a href="https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&type=4&dateb=&owner=include&count=40" target="_blank" rel="noreferrer">View on EDGAR →</a></p>
+    </div>
+  )
+}
 
 function ShortTab({ data, loading, error }) {
   if (loading) return <div className="loading-msg">Fetching short interest data...</div>
@@ -184,7 +228,7 @@ export default function App() {
 
   useEffect(() => { loadAll() }, [loadAll])
 
-  const insiderCount = insiderData?.transactions?.length || 0
+  const insiderCount = insiderData?.hits?.hits?.length || 0
   const instCount = instData?.hits?.hits?.length || 0
 
   return (
