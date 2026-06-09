@@ -1,6 +1,14 @@
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   const HEADERS = { 'User-Agent': 'StockSniffer xenolinux@gmail.com' }
+  const SAMPLE = [
+    { company: 'Apple Inc.', ticker: 'AAPL', insider: 'Tim Cook', role: 'CEO', transactionCode: 'S', signal: 'sell', shares: 50000, price: 211.45, totalValue: 10572500, date: new Date().toISOString().split('T')[0] },
+    { company: 'NVIDIA Corp.', ticker: 'NVDA', insider: 'Jensen Huang', role: 'CEO', transactionCode: 'S', signal: 'sell', shares: 120000, price: 134.22, totalValue: 16106400, date: new Date().toISOString().split('T')[0] },
+    { company: 'Palantir Technologies', ticker: 'PLTR', insider: 'Alexander Karp', role: 'CEO', transactionCode: 'P', signal: 'buy', shares: 250000, price: 28.43, totalValue: 7107500, date: new Date().toISOString().split('T')[0] },
+    { company: 'Super Micro Computer', ticker: 'SMCI', insider: 'Charles Liang', role: 'CEO', transactionCode: 'P', signal: 'buy', shares: 100000, price: 42.18, totalValue: 4218000, date: new Date().toISOString().split('T')[0] },
+    { company: 'Rocket Companies', ticker: 'RKT', insider: 'Jay Farner', role: 'Director', transactionCode: 'P', signal: 'buy', shares: 500000, price: 12.34, totalValue: 6170000, date: new Date().toISOString().split('T')[0] },
+    { company: 'Meta Platforms', ticker: 'META', insider: 'Mark Zuckerberg', role: 'CEO', transactionCode: 'S', signal: 'sell', shares: 75000, price: 632.10, totalValue: 47407500, date: new Date().toISOString().split('T')[0] },
+  ]
 
   try {
     const today = new Date().toISOString().split('T')[0]
@@ -10,6 +18,7 @@ export default async function handler(req, res) {
     if (!searchRes.ok) throw new Error(`Search failed: ${searchRes.status}`)
     const searchJson = await searchRes.json()
     const hits = searchJson?.hits?.hits || []
+    if (hits.length === 0) throw new Error('No hits')
 
     const transactions = []
     const limit = Math.min(hits.length, 20)
@@ -19,24 +28,19 @@ export default async function handler(req, res) {
       const src = hit._source || {}
       const accession = src.accession_no || hit._id || ''
       if (!accession) continue
-
       try {
         const accClean = accession.replace(/-/g, '')
-        const cikRaw = accClean.substring(0, 10)
-        const cik = cikRaw.replace(/^0+/, '')
+        const cik = accClean.substring(0, 10).replace(/^0+/, '')
         const filingIndexUrl = `https://www.sec.gov/Archives/edgar/data/${cik}/${accClean}/${accession}-index.json`
         const idxRes = await fetch(filingIndexUrl, { headers: HEADERS })
-        if (!idxRes.ok) { pushFallback(transactions, src); continue }
-
+        if (!idxRes.ok) continue
         const idx = await idxRes.json()
         const items = idx?.directory?.item || []
         const xmlFile = items.find(f => f.name && /^\d.*\.xml$/i.test(f.name) && !f.name.startsWith('R'))
-        if (!xmlFile) { pushFallback(transactions, src); continue }
-
+        if (!xmlFile) continue
         const xmlUrl = `https://www.sec.gov/Archives/edgar/data/${cik}/${accClean}/${xmlFile.name}`
         const xmlRes = await fetch(xmlUrl, { headers: HEADERS })
-        if (!xmlRes.ok) { pushFallback(transactions, src); continue }
-
+        if (!xmlRes.ok) continue
         const xmlText = await xmlRes.text()
         const parsed = parseForm4XML(xmlText)
         if (parsed) transactions.push({ ...parsed, date: src.file_date || today })
@@ -44,38 +48,12 @@ export default async function handler(req, res) {
     }
 
     const buySell = transactions.filter(t => t.signal === 'buy' || t.signal === 'sell')
-    res.status(200).json({ transactions: buySell.length > 0 ? buySell : transactions, total: hits.length })
+    if (buySell.length === 0) throw new Error('No buy/sell found')
+    res.status(200).json({ transactions: buySell, total: hits.length })
 
   } catch (e) {
-    res.status(200).json({
-      fallback: true,
-      transactions: [
-        { company: 'Apple Inc.', ticker: 'AAPL', insider: 'Tim Cook', role: 'CEO', transactionCode: 'S', signal: 'sell', shares: 50000, price: 211.45, totalValue: 10572500, date: new Date().toISOString().split('T')[0] },
-        { company: 'NVIDIA Corp.', ticker: 'NVDA', insider: 'Jensen Huang', role: 'CEO', transactionCode: 'S', signal: 'sell', shares: 120000, price: 134.22, totalValue: 16106400, date: new Date().toISOString().split('T')[0] },
-        { company: 'Palantir Technologies', ticker: 'PLTR', insider: 'Alexander Karp', role: 'CEO', transactionCode: 'P', signal: 'buy', shares: 250000, price: 28.43, totalValue: 7107500, date: new Date().toISOString().split('T')[0] },
-        { company: 'Super Micro Computer', ticker: 'SMCI', insider: 'Charles Liang', role: 'CEO', transactionCode: 'P', signal: 'buy', shares: 100000, price: 42.18, totalValue: 4218000, date: new Date().toISOString().split('T')[0] },
-        { company: 'Rocket Companies', ticker: 'RKT', insider: 'Jay Farner', role: 'Director', transactionCode: 'P', signal: 'buy', shares: 500000, price: 12.34, totalValue: 6170000, date: new Date().toISOString().split('T')[0] },
-        { company: 'Meta Platforms', ticker: 'META', insider: 'Mark Zuckerberg', role: 'CEO', transactionCode: 'S', signal: 'sell', shares: 75000, price: 632.10, totalValue: 47407500, date: new Date().toISOString().split('T')[0] },
-      ],
-      total: 100
-    })
+    res.status(200).json({ fallback: true, transactions: SAMPLE, total: SAMPLE.length })
   }
-}
-
-function pushFallback(arr, src) {
-  arr.push({
-    company: src.display_names?.[0] || src.entity_name || 'Unknown',
-    ticker: extractTicker(src.display_names?.[0] || ''),
-    insider: src.entity_name || '—',
-    role: '—', transactionCode: '—', signal: 'unknown',
-    shares: null, price: null, totalValue: null,
-    date: src.file_date || '—',
-  })
-}
-
-function extractTicker(name) {
-  const m = name.match(/\(([A-Z]{1,5})\)/)
-  return m ? m[1] : '—'
 }
 
 function parseForm4XML(xml) {
